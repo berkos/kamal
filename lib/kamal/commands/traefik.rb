@@ -16,7 +16,7 @@ class Kamal::Commands::Traefik < Kamal::Commands::Base
   }
 
   def run
-    docker :run, "--name traefik",
+    docker :run, "--name #{container_name}",
       "--detach",
       "--restart", "unless-stopped",
       *publish_args,
@@ -31,11 +31,11 @@ class Kamal::Commands::Traefik < Kamal::Commands::Base
   end
 
   def start
-    docker :container, :start, "traefik"
+    docker :container, :start, container_name
   end
 
   def stop
-    docker :container, :stop, "traefik"
+    docker :container, :stop, container_name
   end
 
   def start_or_run
@@ -43,18 +43,18 @@ class Kamal::Commands::Traefik < Kamal::Commands::Base
   end
 
   def info
-    docker :ps, "--filter", "name=^traefik$"
+    docker :ps, "--filter", "name=^#{container_name}$"
   end
 
   def logs(since: nil, lines: nil, grep: nil)
     pipe \
-      docker(:logs, "traefik", (" --since #{since}" if since), (" --tail #{lines}" if lines), "--timestamps", "2>&1"),
+      docker(:logs, container_name, (" --since #{since}" if since), (" --tail #{lines}" if lines), "--timestamps", "2>&1"),
       ("grep '#{grep}'" if grep)
   end
 
   def follow_logs(host:, grep: nil)
     run_over_ssh pipe(
-      docker(:logs, "traefik", "--timestamps", "--tail", "10", "--follow", "2>&1"),
+      docker(:logs, container_name, "--timestamps", "--tail", "10", "--follow", "2>&1"),
       (%(grep "#{grep}") if grep)
     ).join(" "), host: host
   end
@@ -74,7 +74,7 @@ class Kamal::Commands::Traefik < Kamal::Commands::Base
   def env
     Kamal::Configuration::Env.from_config \
       config: config.traefik.fetch("env", {}),
-      secrets_file: File.join(config.host_env_directory, "traefik", "traefik.env")
+      secrets_file: File.join(config.host_env_directory, "traefik", "#{container_name}.env")
   end
 
   def make_env_directory
@@ -88,6 +88,10 @@ class Kamal::Commands::Traefik < Kamal::Commands::Base
   private
     def publish_args
       argumentize "--publish", port unless config.traefik["publish"] == false
+    end
+  
+    def container_name
+      config.traefik["name"] || "traefik"
     end
 
     def label_args
